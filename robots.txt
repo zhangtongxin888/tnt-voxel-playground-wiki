@@ -1,0 +1,5 @@
+User-Agent: *
+Allow: /
+
+Host: https://tnt-voxel-playground.wiki
+Sitemap: https://tnt-voxel-playground.wiki/sitemap.xml
