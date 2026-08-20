@@ -1,0 +1,52 @@
+// adsterra-code-handoff:artifact-config
+// Domain: tnt-voxel-playground.wiki
+export const adsterraConfig = {
+  "adsterraNeedsGlobalFallback": 1,
+  "adsterraEligiblePaths": [
+    "/",
+    "/faq",
+    "/faq/index.html",
+    "/gameplay-loop",
+    "/gameplay-loop/index.html",
+    "/index.html",
+    "/mistakes",
+    "/mistakes/index.html",
+    "/progression",
+    "/progression/index.html",
+    "/quick-start",
+    "/quick-start/index.html"
+  ],
+  "adsterraExcludedPaths": [
+    "/404",
+    "/404.html",
+    "/404/index.html",
+    "/_not-found",
+    "/_not-found/index.html",
+    "/sources",
+    "/sources/index.html"
+  ],
+  "adsterraBannerId": "ef0cddaa9dc159fd5991e78e249ed575",
+  "adsterraBanner300x250Key": "ef0cddaa9dc159fd5991e78e249ed575",
+  "adsterraBanner300x250ScriptUrl": "https://www.highperformanceformat.com/ef0cddaa9dc159fd5991e78e249ed575/invoke.js",
+  "adsterraBanner320x50Key": "c8c858052a5791041dbc1399a4119e7e",
+  "adsterraBanner320x50ScriptUrl": "https://www.highperformanceformat.com/c8c858052a5791041dbc1399a4119e7e/invoke.js",
+  "adsterraBanner728x90Key": "21e64506324bc691b8bb9ccfbc8a1826",
+  "adsterraBanner728x90ScriptUrl": "https://www.highperformanceformat.com/21e64506324bc691b8bb9ccfbc8a1826/invoke.js",
+  "adsterraBanner468x60Key": "281f192df808c302c2a8e7a955c1c00d",
+  "adsterraBanner468x60ScriptUrl": "https://www.highperformanceformat.com/281f192df808c302c2a8e7a955c1c00d/invoke.js",
+  "adsterraBanner160x300Key": "5677d8a3c3d8a9eccfb936b9825dc2d7",
+  "adsterraBanner160x300ScriptUrl": "https://www.highperformanceformat.com/5677d8a3c3d8a9eccfb936b9825dc2d7/invoke.js",
+  "adsterraBanner160x600Key": "e2d378b500c580c05e736e5ffad2879e",
+  "adsterraBanner160x600ScriptUrl": "https://www.highperformanceformat.com/e2d378b500c580c05e736e5ffad2879e/invoke.js",
+  "adsterraNative1Id": "container-336fd2476c6dcd0ece0b47953d8867e6",
+  "adsterraNative1ScriptUrl": "https://pl30931853.effectivecpmnetwork.com/336fd2476c6dcd0ece0b47953d8867e6/invoke.js",
+  "adsterraSmartLinkUrl": "https://www.effectivecpmnetwork.com/bmm4ba21k?key=8e6d92ad141fbad85ad79465e3d9d5db",
+  "adsterraPopunderScriptUrl": "https://pl30931849.effectivecpmnetwork.com/00/c0/97/00c0979806e0ade2140bd6f25dcb42d3.js",
+  "adsterraSocialBarScriptUrl": "https://pl30931850.effectivecpmnetwork.com/9b/21/22/9b2122ab88b00636a4de08c0c53a6f51.js",
+  "adsterraLeaderboardId": "21e64506324bc691b8bb9ccfbc8a1826",
+  "adsterraEnablePopunder": false,
+  "adsterraEnableSocialBar": false,
+  "adsterraEnableStickyRail": false,
+  "adsterraPopunderDelayMs": 30000,
+  "adsterraPopunderMinPageViews": 2
+};
