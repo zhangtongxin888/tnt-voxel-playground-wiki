@@ -1,145 +1,251 @@
-// adsterra-artifact-runtime
-import { adsterraConfig } from "./config.js";
+/* Adsterra static runtime for plain HTML exports.
+   Load with <script src="/adsterra/runtime.js" defer></script>
+   after <script type="application/json" id="adsterra-config">.
+   This file is a classic script. It has no module statement, because a
+   deferred classic script tag does not run one and the page then makes
+   zero ad requests.
+   Local change (foreverago-wiki, theescapists3wiki): banners are queued until the previous
+   banner script loads (upstream waited only 50 ms, so atOptions raced), and
+   the top banner picks the widest variant allowed by the screen (upstream
+   always ended on the 320x50 entry).
+   Local change (2026-10-23, shared by every Adsterra Popunder site): Popunder
+   capped at 3 per visitor per local calendar day (localStorage). A page view
+   counts once, on its first click after the Popunder script has loaded.
+   Local change (2026-10-28, Pop + Social Bar only): banner/native slots are
+   never mounted (pages carry no ad slots). Social Bar is capped at 3 page
+   loads per visitor per local day (own localStorage key), inserted 4 s after
+   load into document.body (never a hidden container), and only on pages
+   that are not legal pages or 404 (cleanPage / CLEAN paths / 404 title). */
+(function () {
+  "use strict";
 
-const ADSTERRA_RUNTIME_MARKER = "adsterra-artifact-runtime";
-void Object.values(adsterraConfig);
-
-const ELIGIBLE_PATHS = new Set(adsterraConfig.adsterraEligiblePaths || []);
-const EXCLUDED_PATHS = new Set(adsterraConfig.adsterraExcludedPaths || []);
-
-function normalizedRoute(url = window.location.href) {
-  const parsed = new URL(url, window.location.href);
-  let pathname = parsed.pathname;
-  try {
-    pathname = decodeURI(pathname);
-  } catch {
-    // Keep the browser-normalized pathname when percent encoding is malformed.
-  }
-  if (pathname.length > 1) pathname = pathname.replace(/\/+$/, "");
-  return pathname || "/";
-}
-
-function cleanRoute(url = window.location.href) {
-  const pathname = normalizedRoute(url);
-  return EXCLUDED_PATHS.has(pathname) || (ELIGIBLE_PATHS.size > 0 && !ELIGIBLE_PATHS.has(pathname));
-}
-
-function installArtifactRouteLifecycle() {
-  const marker = "__adsterraArtifactRouteLifecycleV1";
-  if (window[marker]) return;
-  window[marker] = true;
-
-  document.addEventListener("click", (event) => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
-    if (!anchor || anchor.hasAttribute("download")) return;
-    const target = (anchor.getAttribute("target") || "").toLowerCase();
-    if (target && target !== "_self") return;
-    const destination = new URL(anchor.href, window.location.href);
-    if (destination.origin !== window.location.origin || !cleanRoute(destination.href)) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    window.location.assign(destination.href);
-  }, true);
-
-  const unloadCleanDocument = () => {
-    if (cleanRoute()) window.location.reload();
+  var CLEAN = {
+    about: 1,
+    accessibility: 1,
+    "advertising-policy": 1,
+    "affiliate-disclosure": 1,
+    contact: 1,
+    "cookie-policy": 1,
+    cookies: 1,
+    disclosure: 1,
+    dmca: 1,
+    "editorial-policy": 1,
+    legal: 1,
+    privacy: 1,
+    sources: 1,
+    terms: 1
   };
-  for (const method of ["pushState", "replaceState"]) {
-    const original = window.history[method].bind(window.history);
-    window.history[method] = (...args) => {
-      const result = original(...args);
-      unloadCleanDocument();
-      return result;
-    };
+
+  function cleanPath() {
+    var parts = String(window.location.pathname || "").split("/");
+    for (var i = 0; i < parts.length; i += 1) {
+      if (CLEAN[parts[i].toLowerCase()]) return true;
+    }
+    return false;
   }
-  window.addEventListener("popstate", unloadCleanDocument);
-}
 
-
-function normalizeUrl(url) {
-  if (!url) return undefined;
-  return url.startsWith("//") ? `https:${url}` : url;
-}
-
-function addScript(id, url, parent = document.body) {
-  const source = normalizeUrl(url);
-  if (!source || document.getElementById(id)) return;
-  const script = document.createElement("script");
-  script.id = id;
-  script.async = true;
-  script.dataset.cfasync = "false";
-  script.src = source;
-  parent.appendChild(script);
-}
-
-function bannerConfig(size) {
-  const suffix = size.replace("x", "x");
-  const names = {
-    "300x250": ["adsterraBanner300x250Key", "adsterraBanner300x250ScriptUrl", 300, 250],
-    "320x50": ["adsterraBanner320x50Key", "adsterraBanner320x50ScriptUrl", 320, 50],
-    "728x90": ["adsterraBanner728x90Key", "adsterraBanner728x90ScriptUrl", 728, 90],
-    "468x60": ["adsterraBanner468x60Key", "adsterraBanner468x60ScriptUrl", 468, 60],
-    "160x300": ["adsterraBanner160x300Key", "adsterraBanner160x300ScriptUrl", 160, 300],
-    "160x600": ["adsterraBanner160x600Key", "adsterraBanner160x600ScriptUrl", 160, 600],
-  };
-  const [keyName, scriptName, width, height] = names[suffix];
-  const key = adsterraConfig[keyName];
-  const scriptUrl = normalizeUrl(adsterraConfig[scriptName]) ||
-    (key ? `https://www.highperformanceformat.com/${key}/invoke.js` : undefined);
-  return { key, scriptUrl, width, height };
-}
-
-function mountBanner(size, className) {
-  const config = bannerConfig(size);
-  if (!config.key || !config.scriptUrl || document.querySelector(`.${className}`)) return;
-  const shell = document.createElement("aside");
-  shell.className = className;
-  shell.setAttribute("aria-label", "Advertisement");
-  const host = document.createElement("div");
-  host.style.minHeight = `${config.height}px`;
-  host.style.maxWidth = `${config.width}px`;
-  shell.appendChild(host);
-  document.body.appendChild(shell);
-  window.atOptions = { key: config.key, format: "iframe", height: config.height, width: config.width, params: {} };
-  addScript(`adsterra-banner-${size}`, config.scriptUrl, host);
-}
-
-export function mountAdsterraNative(container) {
-  if (!container || !adsterraConfig.adsterraNative1Id || !adsterraConfig.adsterraNative1ScriptUrl) return;
-  const target = document.createElement("div");
-  target.id = adsterraConfig.adsterraNative1Id.replace(/^#/, "");
-  container.appendChild(target);
-  addScript("adsterra-native-1", adsterraConfig.adsterraNative1ScriptUrl, container);
-}
-
-function mountAdsterraRuntime() {
-  if (cleanRoute()) return;
-  document.documentElement.dataset.adsterraRuntime = ADSTERRA_RUNTIME_MARKER;
-  const loader = document.querySelector("script[data-adsterra-runtime]");
-  if (adsterraConfig.adsterraNeedsGlobalFallback === 1) {
-    mountBanner(window.matchMedia("(min-width: 768px)").matches ? "728x90" : "320x50", "adsterra-global-fallback");
-  }
-  if (adsterraConfig.adsterraEnableStickyRail) mountBanner("160x600", "adsterra-sticky-rail");
-  if (adsterraConfig.adsterraEnableSocialBar) {
-    addScript("adsterra-social-bar", adsterraConfig.adsterraSocialBarScriptUrl);
-  }
-  if (adsterraConfig.adsterraEnablePopunder && adsterraConfig.adsterraPopunderScriptUrl) {
-    const viewsKey = "roblox-site-adsterra-pageviews";
-    const nextViews = Number(sessionStorage.getItem(viewsKey) || "0") + 1;
-    sessionStorage.setItem(viewsKey, String(nextViews));
-    if (nextViews >= adsterraConfig.adsterraPopunderMinPageViews) {
-      window.setTimeout(
-        () => addScript("adsterra-popunder", adsterraConfig.adsterraPopunderScriptUrl),
-        adsterraConfig.adsterraPopunderDelayMs,
-      );
+  function readConfig() {
+    var node = document.getElementById("adsterra-config");
+    if (!node) return null;
+    try {
+      return JSON.parse(node.textContent || "");
+    } catch (error) {
+      return null;
     }
   }
-}
 
-installArtifactRouteLifecycle();
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", mountAdsterraRuntime, { once: true });
-} else {
-  mountAdsterraRuntime();
-}
+  function visibleCount() {
+    return document.querySelectorAll("aside.ad-placement").length;
+  }
+
+  function chooseVariant(slot) {
+    var variants = slot.variants || [];
+    if (!variants.length) return slot;
+    var width = window.innerWidth || 0;
+    var selected = null;
+    var best = -1;
+    for (var i = 0; i < variants.length; i += 1) {
+      var variant = variants[i];
+      var minWidth = Number(variant.minWidth || 0);
+      /* Pick the widest variant the screen allows, whatever the list order. */
+      if (width >= minWidth && minWidth > best) {
+        selected = variant;
+        best = minWidth;
+      }
+    }
+    return selected || variants[variants.length - 1];
+  }
+
+  function mountBanner(host, slot) {
+    var chosen = chooseVariant(slot);
+    var key = chosen.key;
+    var scriptUrl = chosen.scriptUrl;
+    if (!key || !scriptUrl) return;
+    window.atOptions = {
+      key: key,
+      format: "iframe",
+      height: Number(chosen.height),
+      width: Number(chosen.width),
+      params: {}
+    };
+    var script = document.createElement("script");
+    script.async = true;
+    script.src = scriptUrl;
+    host.appendChild(script);
+    return script;
+  }
+
+  function mountNative(host, slot) {
+    if (!slot.containerId || !slot.scriptUrl) return;
+    var container = document.createElement("div");
+    container.id = slot.containerId;
+    host.appendChild(container);
+    var script = document.createElement("script");
+    script.async = true;
+    script.setAttribute("data-cfasync", "false");
+    script.src = slot.scriptUrl;
+    host.appendChild(script);
+  }
+
+  function mountSlots(slots) {
+    var queue = Promise.resolve();
+    slots.forEach(function (slot) {
+      queue = queue.then(function () {
+        return new Promise(function (resolve) {
+          var host = document.querySelector('[data-ad-host="' + slot.id + '"]');
+          if (!host) {
+            resolve();
+            return;
+          }
+          if (slot.format === "native") {
+            mountNative(host, slot);
+            window.setTimeout(resolve, 50);
+            return;
+          }
+          /* Banner snippets read the global atOptions when their script runs,
+             so the next banner must wait until this one has loaded. */
+          var script = mountBanner(host, slot);
+          if (!script) {
+            resolve();
+            return;
+          }
+          var done = false;
+          var finish = function () {
+            if (done) return;
+            done = true;
+            window.setTimeout(resolve, 300);
+          };
+          script.addEventListener("load", finish);
+          script.addEventListener("error", finish);
+          window.setTimeout(finish, 5000);
+        });
+      });
+    });
+  }
+
+  function addScript(id, url) {
+    if (!url || document.getElementById(id)) return;
+    var script = document.createElement("script");
+    script.id = id;
+    script.async = true;
+    script.setAttribute("data-cfasync", "false");
+    script.src = url;
+    document.body.appendChild(script);
+  }
+
+  /* Popunder: at most POP_DAILY_MAX per visitor per local calendar day.
+     The Adsterra Popunder script, once loaded, opens a popunder on a user
+     click, so each page view that receives a click after the script loaded
+     is counted once. When today's count has reached the cap, the script is
+     not inserted at all, so no Popunder request is made. A click before the
+     script loads, or a failed load, never counts. The count lives in
+     localStorage as {"d":"YYYY-MM-DD","n":count} and resets on a new day.
+     If storage is unavailable the script is not loaded (fail closed). */
+  var POP_KEY = "adsterra-popunder-daily";
+  var POP_DAILY_MAX = 3;
+  function today() {
+    var d = new Date();
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return d.getFullYear() + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
+  }
+  function readPopCount() {
+    try {
+      var raw = JSON.parse(window.localStorage.getItem(POP_KEY) || "null");
+      if (raw && raw.d === today()) return Number(raw.n) || 0;
+      return 0;
+    } catch (e) {
+      return -1;
+    }
+  }
+  function countPop() {
+    try {
+      var n = readPopCount();
+      if (n < 0) n = 0;
+      window.localStorage.setItem(POP_KEY, JSON.stringify({ d: today(), n: n + 1 }));
+    } catch (e) {}
+  }
+  function addPopunder(url) {
+    if (!url || document.getElementById("adsterra-popunder")) return;
+    var used = readPopCount();
+    if (used < 0 || used >= POP_DAILY_MAX) return;
+    var script = document.createElement("script");
+    script.id = "adsterra-popunder";
+    script.async = true;
+    script.setAttribute("data-cfasync", "false");
+    script.addEventListener("load", function () {
+      document.addEventListener("click", countPop, { capture: true, once: true });
+    });
+    script.src = url;
+    document.body.appendChild(script);
+  }
+
+  var SB_KEY = "adsterra-socialbar-daily";
+  var SB_DAILY_MAX = 3;
+  var SB_DELAY_MS = 4000;
+  function readSbCount() {
+    try {
+      var raw = JSON.parse(window.localStorage.getItem(SB_KEY) || "null");
+      if (raw && raw.d === today()) return Number(raw.n) || 0;
+      return 0;
+    } catch (e) {
+      return -1;
+    }
+  }
+  function addSocialBar(url) {
+    if (!url || document.getElementById("adsterra-social-bar")) return;
+    var used = readSbCount();
+    if (used < 0 || used >= SB_DAILY_MAX) return;
+    window.setTimeout(function () {
+      if (document.getElementById("adsterra-social-bar")) return;
+      var n = readSbCount();
+      if (n < 0 || n >= SB_DAILY_MAX) return;
+      try {
+        window.localStorage.setItem(SB_KEY, JSON.stringify({ d: today(), n: n + 1 }));
+      } catch (e) {
+        return;
+      }
+      var script = document.createElement("script");
+      script.id = "adsterra-social-bar";
+      script.async = true;
+      script.setAttribute("data-cfasync", "false");
+      script.src = url;
+      document.body.appendChild(script);
+    }, SB_DELAY_MS);
+  }
+  function notFoundPage() {
+    var t = String(document.title || "").toLowerCase();
+    return /(^|\D)404(\D|$)|not found/.test(t);
+  }
+
+  var config = readConfig();
+  if (!config || config.adNetwork !== "adsterra" || config.status !== "ready") return;
+  if (config.cleanPage || cleanPath() || notFoundPage()) return;
+  /* Pop + Social Bar only: banner and native slots are not mounted. */
+  if (config.enablePopunder && config.popunderScriptUrl) {
+    addPopunder(config.popunderScriptUrl);
+  }
+  if (config.enableSocialBar && config.socialBarScriptUrl) {
+    addSocialBar(config.socialBarScriptUrl);
+  }
+})();
